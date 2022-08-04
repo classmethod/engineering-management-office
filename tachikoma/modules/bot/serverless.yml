@@ -1,0 +1,48 @@
+---
+service: tachikoma-bot
+frameworkVersion: '2'
+provider:
+  name: aws
+  runtime: nodejs14.x
+  environment:
+    SLACK_SIGNING_SECRET: ${env:SLACK_SIGNING_SECRET}
+    SLACK_BOT_TOKEN: ${env:SLACK_BOT_TOKEN}
+  iamRoleStatements:
+    - Effect: 'Allow'
+      Action:
+        - 'sqs:*'
+      Resource:
+        - '*'
+functions:
+  slack:
+    handler: src/slack.handler
+    events:
+      - http:
+          path: slack/events
+          method: post
+    environment:
+      QUEUE_END_POINT: !Ref TachikomaQueue
+  detect:
+    handler: src/detect.handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - TachikomaQueue
+              - Arn
+plugins:
+  - serverless-esbuild
+  - serverless-offline
+package:
+  include:
+    - node_modules/kuromoji/dict/**
+resources:
+  Resources:
+    TachikomaQueue:
+      Type: "AWS::SQS::Queue"
+      Properties:
+        QueueName: "TachikomaQueue"
+custom:
+  esbuild:
+    target:
+      - es2020

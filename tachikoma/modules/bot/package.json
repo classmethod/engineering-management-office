@@ -1,0 +1,26 @@
+{
+  "name": "tachikoma-bot",
+  "version": "0.0.1",
+  "author": "Takagi Kensuke <janus.wel.3@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "deploy": "serverless deploy",
+    "dev": "npx serverless offline --noPrependStageInUrl",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sqs": "3.13.0",
+    "@slack/bolt": "3.3.0",
+    "@slack/web-api": "6.1.0",
+    "@vendia/serverless-express": "4.3.4",
+    "kuromoji": "0.1.2"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "8.10.75",
+    "@types/kuromoji": "0.1.0",
+    "serverless": "2.35.0",
+    "serverless-esbuild": "1.10.2",
+    "serverless-offline": "6.9.0",
+    "typescript": "4.2.4"
+  }
+}
