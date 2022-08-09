@@ -7,7 +7,7 @@
     "test": "jest --coverage"
   },
   "dependencies": {
-    "@types/node": "14.14.25"
+    "@types/node": "16.11.47"
   },
   "devDependencies": {
     "@types/google-apps-script": "1.0.53"
