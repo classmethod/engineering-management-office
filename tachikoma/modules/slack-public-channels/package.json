@@ -10,6 +10,6 @@
     "@types/node": "14.14.25"
   },
   "devDependencies": {
-    "@types/google-apps-script": "1.0.22"
+    "@types/google-apps-script": "1.0.53"
   }
 }
