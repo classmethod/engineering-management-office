@@ -12,14 +12,14 @@
     "@aws-sdk/client-sqs": "3.13.0",
     "@slack/bolt": "3.12.1",
     "@slack/web-api": "6.7.2",
-    "@vendia/serverless-express": "4.3.4",
+    "@vendia/serverless-express": "4.10.1",
     "kuromoji": "0.1.2"
   },
   "devDependencies": {
     "@types/aws-lambda": "8.10.75",
     "@types/kuromoji": "0.1.0",
-    "serverless": "2.35.0",
-    "serverless-esbuild": "1.10.2",
-    "serverless-offline": "6.9.0"
+    "serverless": "3.21.0",
+    "serverless-esbuild": "1.32.5",
+    "serverless-offline": "9.1.7"
   }
 }
