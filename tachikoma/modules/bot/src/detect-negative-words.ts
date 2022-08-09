@@ -7,7 +7,7 @@ type NegativeWords = Array<string>
 export default function detectNegativeWords(target: string): Promise<NegativeWords> {
   return new Promise((resolve) => {
     kuromoji.builder({
-      dicPath: 'node_modules/kuromoji/dict'
+      dicPath: 'assets/dict'
     }).build((err, tokenizer) => {
       const tokens = tokenizer.tokenize(target)
       const basicForms = tokens.map(token => token.basic_form)
