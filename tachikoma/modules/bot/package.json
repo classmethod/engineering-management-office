@@ -4,9 +4,10 @@
   "author": "Takagi Kensuke <janus.wel.3@gmail.com>",
   "license": "MIT",
   "scripts": {
-    "deploy": "serverless deploy",
+    "deploy": "serverless deploy --verbose",
     "dev": "npx serverless offline --noPrependStageInUrl",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "postinstall": "cp -f ../../node_modules/kuromoji/dict/* assets"
   },
   "dependencies": {
     "@aws-sdk/client-sqs": "3.145.0",
@@ -18,8 +19,7 @@
   "devDependencies": {
     "@types/aws-lambda": "8.10.101",
     "@types/kuromoji": "0.1.1",
-    "serverless": "3.21.0",
-    "serverless-esbuild": "1.32.5",
-    "serverless-offline": "9.1.7"
+    "serverless": "2.72.3",
+    "serverless-esbuild": "1.32.5"
   }
 }
