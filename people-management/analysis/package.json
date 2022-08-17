@@ -1,0 +1,10 @@
+{
+  "name": "people-management-analysis",
+  "version": "0.0.0",
+  "description": "scripts for people management analysis",
+  "author": "Takagi Kensuke <janus.wel.3@gmail.com>",
+  "private": true,
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
