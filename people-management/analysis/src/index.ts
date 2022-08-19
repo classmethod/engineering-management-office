@@ -3,15 +3,24 @@ import {
   PageObjectResponse,
   PartialPageObjectResponse,
 } from "@notionhq/client/build/src/api-endpoints";
+import * as CSV from "csv";
+import * as fs from "fs";
 
+interface Organization {
+  id: string;
+  name: string;
+}
 interface Score {
   [managerName: string]: number | null;
 }
 interface AllScore {
-  [actionName: string]: Score;
+  [actionOrder: number]: Score;
 }
 interface Actions {
-  [id: string]: string;
+  [id: string]: {
+    order: number;
+    name: string;
+  };
 }
 
 const notion = new Notion.Client({
@@ -21,21 +30,66 @@ const notion = new Notion.Client({
 
 const ORGANIZATIONS_DATABASE_ID = "0e29cfb8bb3d4ccc98c9c49e03d3aeaf";
 const ACTIONS: Actions = {
-  a1a988e5ec994eb39e393ad305820d98: "定期 1on1",
-  "967e2371ed17475b8af9ecabdbddfa78": "評価 目標設定",
-  "1652cea61f074434bddf8e2b01060512": "評価 目標達成支援",
-  "08fc9d02f2b44f129066e088a116a939": "評価 評価実施",
-  f0f7a076ed4443c2850a76fc2718f793: "評価 評価フィードバック",
-  "8cf3bff2118b41738da80acf40c2d059": "チーム内コミュニケーション",
-  "54a944972d464153b65dd2a5d02c7353": "キャリア形成支援",
-  c17e62cbd36f4fe2b030ec8cb576e10c: "360度フィードバック",
-  "365f577392764a8885fb21f3a5f55613": "リアルタイムフィードバック",
-  "10f3bb1b0b8f451a9d076f4bdef1a670": "入社オンボーディング",
-  c4000ee496b745b3957d398534ae6293: "異動調整",
-  "4a406c4255e642a28e7cac9120be868d": "異動オンボーディング",
-  b5817aae448d4e0ab7af41490fa24b4e: "内定オファー",
-  "6b123cb4a97f4d6abeb9c6b783f2dee0": "スポット1on1",
-  b02a21ff90244ba8a35da7ba2804bc68: "退職オフボーディング",
+  a1a988e5ec994eb39e393ad305820d98: {
+    order: 0,
+    name: "定期 1on1",
+  },
+  "967e2371ed17475b8af9ecabdbddfa78": {
+    order: 1,
+    name: "評価 目標設定",
+  },
+  "1652cea61f074434bddf8e2b01060512": {
+    order: 2,
+    name: "評価 目標達成支援",
+  },
+  "08fc9d02f2b44f129066e088a116a939": {
+    order: 3,
+    name: "評価 評価実施",
+  },
+  f0f7a076ed4443c2850a76fc2718f793: {
+    order: 4,
+    name: "評価 評価フィードバック",
+  },
+  "8cf3bff2118b41738da80acf40c2d059": {
+    order: 5,
+    name: "チーム内コミュニケーション",
+  },
+  "54a944972d464153b65dd2a5d02c7353": {
+    order: 6,
+    name: "キャリア形成支援",
+  },
+  c17e62cbd36f4fe2b030ec8cb576e10c: {
+    order: 7,
+    name: "360度フィードバック",
+  },
+  "365f577392764a8885fb21f3a5f55613": {
+    order: 8,
+    name: "リアルタイムフィードバック",
+  },
+  "10f3bb1b0b8f451a9d076f4bdef1a670": {
+    order: 9,
+    name: "入社オンボーディング",
+  },
+  c4000ee496b745b3957d398534ae6293: {
+    order: 10,
+    name: "異動調整",
+  },
+  "4a406c4255e642a28e7cac9120be868d": {
+    order: 11,
+    name: "異動オンボーディング",
+  },
+  b5817aae448d4e0ab7af41490fa24b4e: {
+    order: 12,
+    name: "内定オファー",
+  },
+  "6b123cb4a97f4d6abeb9c6b783f2dee0": {
+    order: 13,
+    name: "スポット1on1",
+  },
+  b02a21ff90244ba8a35da7ba2804bc68: {
+    order: 14,
+    name: "退職オフボーディング",
+  },
 };
 
 main();
@@ -44,10 +98,10 @@ async function main() {
   const organizations = await getAllOrganizations();
 
   for (const organization of organizations) {
+    console.info(`collecting score of ${organization.name}`);
     const skillMapId = await getSkillMapDatabase(organization.id);
     const scores = await getScores(skillMapId);
-    const organizationName = await getOrganizationName(organization);
-    console.log(organizationName, scores);
+    write(organization, scores);
   }
 }
 
@@ -55,7 +109,12 @@ async function getAllOrganizations() {
   const response = await notion.databases.query({
     database_id: ORGANIZATIONS_DATABASE_ID,
   });
-  return response.results;
+  return Promise.all(
+    response.results.map(async (organization) => ({
+      id: organization.id,
+      name: await getOrganizationName(organization),
+    }))
+  );
 }
 
 async function getSkillMapDatabase(organizationId: string) {
@@ -84,14 +143,13 @@ async function getScores(skillMapId: string) {
 
     const score: Score = {};
     for (const propertyName in item.properties) {
-      if (propertyName === "Name") {
-        const actionName: string = await getActionName(
+      if (item.properties[propertyName].id === "title") {
+        const action = await getActionName(
           item.id,
           item.properties[propertyName].id
         );
-        if (!(actionName in result)) {
-          result[actionName] = score;
-        }
+        result[action.order] = score;
+        continue;
       }
 
       const property = await notion.pages.properties.retrieve({
@@ -144,7 +202,7 @@ async function getOrganizationName(
     throw new Error("unexpected error");
   }
   for (const propertyName in organization.properties) {
-    if (propertyName !== "Name") {
+    if (organization.properties[propertyName].id !== "title") {
       continue;
     }
 
@@ -164,4 +222,30 @@ async function getOrganizationName(
       return item.title.plain_text;
     }
   }
+
+  throw new Error("unexpected error");
+}
+
+function write(organization: Organization, score: AllScore) {
+  const transformed = transform(score);
+  const output = CSV.stringify(transformed, (err, output) => {
+    fs.writeFileSync(`dist/${organization.name}.csv`, output);
+  });
+}
+
+type Data = Array<{ [name: string]: string | number | null }>;
+function transform(score: AllScore) {
+  const data: Data = Array.from({
+    ...score,
+    length: Object.keys(score).length,
+  });
+  const allScores = data.map((actionScores, index) => {
+    const result = Object.keys(actionScores)
+      .sort()
+      .map((name) => actionScores[name]);
+    return [index, ...result];
+  });
+
+  allScores.unshift(["", ...Object.keys(score[0]).sort()]);
+  return allScores;
 }
