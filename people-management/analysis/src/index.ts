@@ -1,35 +1,73 @@
-import * as Notion from "@notionhq/client";
 import {
+  GetPageResponse,
+  BlockObjectResponse,
+  GetPagePropertyResponse,
+  ListBlockChildrenResponse,
   PageObjectResponse,
+  PartialBlockObjectResponse,
   PartialPageObjectResponse,
+  QueryDatabaseResponse,
 } from "@notionhq/client/build/src/api-endpoints";
-import * as CSV from "csv";
-import * as fs from "fs";
+
+function main() {
+  const organizations = getAllOrganizations();
+
+  for (const organization of organizations) {
+    console.info(`collecting score of ${organization.name}`);
+    const skillMapId = getSkillMapDatabase(organization.id);
+    const scores = getScores(skillMapId);
+    write(organization, scores);
+  }
+}
+
+function write(organization: Organization, score: Score) {
+  const transformed = transform(score);
+  const sheet = getSheet(organization.name);
+
+  sheet
+    .getRange(1, 1, transformed.length, transformed[0].length)
+    .setValues(transformed);
+}
+
+function getSheet(organizationName: string) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName(organizationName);
+  if (sheet === null) {
+    return spreadsheet.insertSheet(organizationName);
+  }
+  return sheet;
+}
+
+type Data = Array<{ [name: string]: string | number | null }>;
+function transform(score: Score) {
+  const data: Data = Array.from({
+    ...score,
+    length: Object.keys(score).length,
+  });
+  const allScores = data.map((actionScores, index) => {
+    const result = Object.keys(actionScores)
+      .sort()
+      .map((name) => actionScores[name]);
+    return [index, ...result];
+  });
+
+  allScores.unshift(["", ...Object.keys(score[0]).sort()]);
+  return allScores;
+}
 
 interface Organization {
   id: string;
   name: string;
 }
-interface Score {
+interface ManagerScore {
   [managerName: string]: number | null;
 }
-interface AllScore {
-  [actionOrder: number]: Score;
+interface Score {
+  [actionName: string]: ManagerScore;
 }
-interface Actions {
-  [id: string]: {
-    order: number;
-    name: string;
-  };
-}
-
-const notion = new Notion.Client({
-  auth: process.env.NOTION_TOKEN,
-  logLevel: Notion.LogLevel.WARN,
-});
 
 const ORGANIZATIONS_DATABASE_ID = "0e29cfb8bb3d4ccc98c9c49e03d3aeaf";
-const ACTIONS: Actions = {
+const ACTIONS = {
   a1a988e5ec994eb39e393ad305820d98: {
     order: 0,
     name: "定期 1on1",
@@ -92,86 +130,56 @@ const ACTIONS: Actions = {
   },
 };
 
-main();
-
-async function main() {
-  const organizations = await getAllOrganizations();
-
-  for (const organization of organizations) {
-    console.info(`collecting score of ${organization.name}`);
-    const skillMapId = await getSkillMapDatabase(organization.id);
-    const scores = await getScores(skillMapId);
-    write(organization, scores);
-  }
-}
-
-async function getAllOrganizations() {
-  const response = await notion.databases.query({
-    database_id: ORGANIZATIONS_DATABASE_ID,
-  });
-  return Promise.all(
-    response.results.map(async (organization) => ({
+function getAllOrganizations() {
+  const response = databases.query(ORGANIZATIONS_DATABASE_ID);
+  return response.results.map(function (organization) {
+    return {
       id: organization.id,
-      name: await getOrganizationName(organization),
-    }))
-  );
+      name: getOrganizationName(organization),
+    };
+  });
 }
 
-async function getSkillMapDatabase(organizationId: string) {
-  const blocks = await notion.blocks.children.list({
-    block_id: organizationId,
-  });
-
-  for (const block of blocks.results) {
-    if (Notion.isFullBlock(block) && block.type === "child_database") {
+function getSkillMapDatabase(organizationId: string) {
+  const blockList = blocks.children.list(organizationId);
+  for (const block of blockList.results) {
+    if (isFullBlock(block) && block.type === "child_database") {
       return block.id;
     }
   }
   throw new Error("skill map database does not exists");
 }
 
-async function getScores(skillMapId: string) {
-  const items = await notion.databases.query({
-    database_id: skillMapId,
-  });
-
-  const result: AllScore = {};
+function getScores(skillMapId: string) {
+  const items = databases.query(skillMapId);
+  const result = {};
   for (const item of items.results) {
-    if (!Notion.isFullPage(item)) {
+    if (!isFullPage(item)) {
       continue;
     }
 
-    const score: Score = {};
+    const score = {};
     for (const propertyName in item.properties) {
       if (item.properties[propertyName].id === "title") {
-        const action = await getActionName(
-          item.id,
-          item.properties[propertyName].id
-        );
+        const action = getActionName(item.id, item.properties[propertyName].id);
         result[action.order] = score;
         continue;
       }
-
-      const property = await notion.pages.properties.retrieve({
-        page_id: item.id,
-        property_id: item.properties[propertyName].id,
-      });
-
+      const property = pages.properties.retrieve(
+        item.id,
+        item.properties[propertyName].id
+      );
       if (property.type !== "number") {
         continue;
       }
-
       score[propertyName] = property.number;
     }
   }
   return result;
 }
 
-async function getActionName(pageId: string, propertyId: string) {
-  const property = await notion.pages.properties.retrieve({
-    page_id: pageId,
-    property_id: propertyId,
-  });
+function getActionName(pageId: string, propertyId: string) {
+  const property = pages.properties.retrieve(pageId, propertyId);
   if (property.type !== "property_item") {
     throw new Error("unexpected error");
   }
@@ -180,14 +188,17 @@ async function getActionName(pageId: string, propertyId: string) {
     if (item.type !== "title") {
       continue;
     }
-    const { title } = item;
+
+    const title = item.title;
     if (title.type !== "mention") {
       continue;
     }
-    const { mention } = title;
+
+    const mention = title.mention;
     if (mention.type !== "page") {
       continue;
     }
+
     const id = mention.page.id.replace(/-/g, "");
     return ACTIONS[id];
   }
@@ -195,21 +206,20 @@ async function getActionName(pageId: string, propertyId: string) {
   throw new Error("Can not get action name: invalid database");
 }
 
-async function getOrganizationName(
-  organization: PageObjectResponse | PartialPageObjectResponse
+function getOrganizationName(
+  organization: GetPageResponse | PartialPageObjectResponse
 ) {
-  if (!Notion.isFullPage(organization)) {
+  if (!isFullPage(organization)) {
     throw new Error("unexpected error");
   }
   for (const propertyName in organization.properties) {
     if (organization.properties[propertyName].id !== "title") {
       continue;
     }
-
-    const property = await notion.pages.properties.retrieve({
-      page_id: organization.id,
-      property_id: organization.properties[propertyName].id,
-    });
+    const property = pages.properties.retrieve(
+      organization.id,
+      organization.properties[propertyName].id
+    );
     if (property.type !== "property_item") {
       throw new Error("unexpected error");
     }
@@ -218,7 +228,6 @@ async function getOrganizationName(
       if (item.type !== "title") {
         continue;
       }
-
       return item.title.plain_text;
     }
   }
@@ -226,26 +235,73 @@ async function getOrganizationName(
   throw new Error("unexpected error");
 }
 
-function write(organization: Organization, score: AllScore) {
-  const transformed = transform(score);
-  const output = CSV.stringify(transformed, (err, output) => {
-    fs.writeFileSync(`dist/${organization.name}.csv`, output);
-  });
+function getVariable(key: string) {
+  if (PropertiesService !== undefined) {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    return scriptProperties.getProperty(key);
+  }
+
+  return process.env[key];
 }
 
-type Data = Array<{ [name: string]: string | number | null }>;
-function transform(score: AllScore) {
-  const data: Data = Array.from({
-    ...score,
-    length: Object.keys(score).length,
-  });
-  const allScores = data.map((actionScores, index) => {
-    const result = Object.keys(actionScores)
-      .sort()
-      .map((name) => actionScores[name]);
-    return [index, ...result];
-  });
-
-  allScores.unshift(["", ...Object.keys(score[0]).sort()]);
-  return allScores;
+type HttpMethod = "get" | "delete" | "patch" | "post" | "put";
+interface RequestOptions {
+  contentType: string;
+  headers: {
+    Authorization: string;
+    "Notion-Version": string;
+  };
+  method?: HttpMethod;
 }
+function request<T>(url: string, method?: HttpMethod) {
+  const options: RequestOptions = {
+    contentType: "application/json",
+    headers: {
+      Authorization: `Bearer ${getVariable("NOTION_TOKEN")}`,
+      "Notion-Version": "2022-06-28",
+    },
+  };
+  if (method !== undefined) {
+    options.method = method;
+  }
+  const response = UrlFetchApp.fetch(url, options);
+  return JSON.parse(response.getContentText()) as T;
+}
+
+const ENDPOINT = "https://api.notion.com/v1";
+const databases = {
+  query(databaseId: string) {
+    const url = `${ENDPOINT}/databases/${databaseId}/query`;
+    return request<QueryDatabaseResponse>(url, "post");
+  },
+};
+const blocks = {
+  children: {
+    list(blockId: string) {
+      const url = `${ENDPOINT}/blocks/${blockId}/children`;
+      return request<ListBlockChildrenResponse>(url);
+    },
+  },
+};
+const pages = {
+  properties: {
+    retrieve(pageId: string, propertyId: string) {
+      const url = `${ENDPOINT}/pages/${pageId}/properties/${propertyId}`;
+      return request<GetPagePropertyResponse>(url);
+    },
+  },
+};
+
+function isFullPage(
+  response: PageObjectResponse | PartialPageObjectResponse
+): response is PageObjectResponse {
+  return "url" in response;
+}
+
+function isFullBlock(
+  response: BlockObjectResponse | PartialBlockObjectResponse
+): response is BlockObjectResponse {
+  return "type" in response;
+}
+
+main();

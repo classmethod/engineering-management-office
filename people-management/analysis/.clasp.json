@@ -1,4 +1,5 @@
 {
   "scriptId": "16DfcArHmeWaWWknhKnGEMa518p0oDKFyw7HePCh_8Wp_QlHCukt-RJ2W",
-  "parentId": ["1D4G4J25FmlMbQuNW62ylMFZUrv4LNy40OQSob41_CIw"]
+  "parentId": ["1D4G4J25FmlMbQuNW62ylMFZUrv4LNy40OQSob41_CIw"],
+  "rootDir": "src/"
 }
