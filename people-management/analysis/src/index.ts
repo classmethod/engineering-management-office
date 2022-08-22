@@ -9,7 +9,7 @@ import {
   QueryDatabaseResponse,
 } from "@notionhq/client/build/src/api-endpoints";
 
-function main() {
+export function main() {
   console.info("collecting all organizations");
   const organizations = getAllOrganizations();
 
@@ -42,7 +42,7 @@ function getSheet(organizationName: string) {
 }
 
 type Data = Array<{ [name: string]: string | number | null }>;
-function transform(score: Score) {
+export function transform(score: Score) {
   const data: Data = Array.from({
     ...score,
     length: Object.keys(score).length,
@@ -143,7 +143,7 @@ const ACTIONS_ARRAY = Array.from(
 );
 
 function getAllOrganizations() {
-  const response = databases.query(ORGANIZATIONS_DATABASE_ID);
+  const response = notion.databases.query(ORGANIZATIONS_DATABASE_ID);
   return response.results.map((organization) => {
     return {
       id: organization.id,
@@ -153,9 +153,9 @@ function getAllOrganizations() {
 }
 
 function getSkillMapDatabase(organizationId: string) {
-  const blockList = blocks.children.list(organizationId);
+  const blockList = notion.blocks.children.list(organizationId);
   for (const block of blockList.results) {
-    if (isFullBlock(block) && block.type === "child_database") {
+    if (notion.isFullBlock(block) && block.type === "child_database") {
       return block.id;
     }
   }
@@ -163,10 +163,10 @@ function getSkillMapDatabase(organizationId: string) {
 }
 
 function getScores(skillMapId: string) {
-  const items = databases.query(skillMapId);
+  const items = notion.databases.query(skillMapId);
   const result = {};
   for (const item of items.results) {
-    if (!isFullPage(item)) {
+    if (!notion.isFullPage(item)) {
       continue;
     }
 
@@ -177,7 +177,7 @@ function getScores(skillMapId: string) {
         result[action.order] = score;
         continue;
       }
-      const property = pages.properties.retrieve(
+      const property = notion.pages.properties.retrieve(
         item.id,
         item.properties[propertyName].id
       );
@@ -191,7 +191,7 @@ function getScores(skillMapId: string) {
 }
 
 function getActionName(pageId: string, propertyId: string) {
-  const property = pages.properties.retrieve(pageId, propertyId);
+  const property = notion.pages.properties.retrieve(pageId, propertyId);
   if (property.type !== "property_item") {
     throw new Error("unexpected error");
   }
@@ -221,14 +221,14 @@ function getActionName(pageId: string, propertyId: string) {
 function getOrganizationName(
   organization: GetPageResponse | PartialPageObjectResponse
 ) {
-  if (!isFullPage(organization)) {
+  if (!notion.isFullPage(organization)) {
     throw new Error("unexpected error");
   }
   for (const propertyName in organization.properties) {
     if (organization.properties[propertyName].id !== "title") {
       continue;
     }
-    const property = pages.properties.retrieve(
+    const property = notion.pages.properties.retrieve(
       organization.id,
       organization.properties[propertyName].id
     );
@@ -265,53 +265,55 @@ interface RequestOptions {
   };
   method?: HttpMethod;
 }
-function request<T>(url: string, method?: HttpMethod) {
-  const options: RequestOptions = {
-    contentType: "application/json",
-    headers: {
-      Authorization: `Bearer ${getVariable("NOTION_TOKEN")}`,
-      "Notion-Version": "2022-06-28",
-    },
-  };
-  if (method !== undefined) {
-    options.method = method;
-  }
-  const response = UrlFetchApp.fetch(url, options);
-  return JSON.parse(response.getContentText()) as T;
-}
-
-const ENDPOINT = "https://api.notion.com/v1";
-const databases = {
-  query(databaseId: string) {
-    const url = `${ENDPOINT}/databases/${databaseId}/query`;
-    return request<QueryDatabaseResponse>(url, "post");
+const notion = {
+  request<T>(url: string, method?: HttpMethod) {
+    const options: RequestOptions = {
+      contentType: "application/json",
+      headers: {
+        Authorization: `Bearer ${getVariable("NOTION_TOKEN")}`,
+        "Notion-Version": "2022-06-28",
+      },
+    };
+    if (method !== undefined) {
+      options.method = method;
+    }
+    const response = UrlFetchApp.fetch(url, options);
+    return JSON.parse(response.getContentText()) as T;
   },
-};
-const blocks = {
-  children: {
-    list(blockId: string) {
-      const url = `${ENDPOINT}/blocks/${blockId}/children`;
-      return request<ListBlockChildrenResponse>(url);
+
+  ENDPOINT: "https://api.notion.com/v1",
+  databases: {
+    query(databaseId: string) {
+      const url = `${notion.ENDPOINT}/databases/${databaseId}/query`;
+      return notion.request<QueryDatabaseResponse>(url, "post");
     },
   },
-};
-const pages = {
-  properties: {
-    retrieve(pageId: string, propertyId: string) {
-      const url = `${ENDPOINT}/pages/${pageId}/properties/${propertyId}`;
-      return request<GetPagePropertyResponse>(url);
+  blocks: {
+    children: {
+      list(blockId: string) {
+        const url = `${notion.ENDPOINT}/blocks/${blockId}/children`;
+        return notion.request<ListBlockChildrenResponse>(url);
+      },
     },
   },
+  pages: {
+    properties: {
+      retrieve(pageId: string, propertyId: string) {
+        const url = `${notion.ENDPOINT}/pages/${pageId}/properties/${propertyId}`;
+        return notion.request<GetPagePropertyResponse>(url);
+      },
+    },
+  },
+
+  isFullPage(
+    response: PageObjectResponse | PartialPageObjectResponse
+  ): response is PageObjectResponse {
+    return "url" in response;
+  },
+
+  isFullBlock(
+    response: BlockObjectResponse | PartialBlockObjectResponse
+  ): response is BlockObjectResponse {
+    return "type" in response;
+  },
 };
-
-function isFullPage(
-  response: PageObjectResponse | PartialPageObjectResponse
-): response is PageObjectResponse {
-  return "url" in response;
-}
-
-function isFullBlock(
-  response: BlockObjectResponse | PartialBlockObjectResponse
-): response is BlockObjectResponse {
-  return "type" in response;
-}
