@@ -10,6 +10,7 @@ import {
 } from "@notionhq/client/build/src/api-endpoints";
 
 function main() {
+  console.info("collecting all organizations");
   const organizations = getAllOrganizations();
 
   for (const organization of organizations) {
@@ -24,9 +25,11 @@ function write(organization: Organization, score: Score) {
   const transformed = transform(score);
   const sheet = getSheet(organization.name);
 
+  sheet.clear();
   sheet
     .getRange(1, 1, transformed.length, transformed[0].length)
     .setValues(transformed);
+  SpreadsheetApp.flush();
 }
 
 function getSheet(organizationName: string) {
@@ -48,7 +51,7 @@ function transform(score: Score) {
     const result = Object.keys(actionScores)
       .sort()
       .map((name) => actionScores[name]);
-    return [index, ...result];
+    return [ACTIONS_ARRAY[index], ...result];
   });
 
   allScores.unshift(["", ...Object.keys(score[0]).sort()]);
@@ -129,10 +132,19 @@ const ACTIONS = {
     name: "退職オフボーディング",
   },
 };
+const ACTIONS_ARRAY = Array.from(
+  Object.values(ACTIONS).reduce(
+    (result, action) => {
+      result[action.order] = action.name;
+      return result;
+    },
+    { length: 15 }
+  )
+);
 
 function getAllOrganizations() {
   const response = databases.query(ORGANIZATIONS_DATABASE_ID);
-  return response.results.map(function (organization) {
+  return response.results.map((organization) => {
     return {
       id: organization.id,
       name: getOrganizationName(organization),
@@ -303,5 +315,3 @@ function isFullBlock(
 ): response is BlockObjectResponse {
   return "type" in response;
 }
-
-main();
