@@ -9,6 +9,8 @@ import {
   QueryDatabaseResponse,
 } from "@notionhq/client/build/src/api-endpoints";
 
+const OUTPUT_FILE_ID = "1D4G4J25FmlMbQuNW62ylMFZUrv4LNy40OQSob41_CIw";
+
 export function main() {
   console.info("collecting all organizations");
   const organizations = getAllOrganizations();
@@ -33,7 +35,7 @@ function write(organization: Organization, score: Score) {
 }
 
 function getSheet(organizationName: string) {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheet = SpreadsheetApp.openById(OUTPUT_FILE_ID);
   const sheet = spreadsheet.getSheetByName(organizationName);
   if (sheet === null) {
     return spreadsheet.insertSheet(organizationName);
