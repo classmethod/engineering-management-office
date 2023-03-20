@@ -1,3 +1,0 @@
-# tachikoma
-
-Slack bot
