@@ -1,6 +1,0 @@
-node_modules
-.envrc
-dist
-*.js
-!jest.config.js
-coverage
